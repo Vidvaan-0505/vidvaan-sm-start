@@ -201,7 +201,7 @@ export default function HomePage() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">What Our Users Say</h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              Hear from individuals who have transformed their careers with Vidvaan's guidance.
+              Hear from individuals who have transformed their careers with Vidvaan&apos;s guidance.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -216,7 +216,7 @@ export default function HomePage() {
                 </div>
               </div>
               <p className="text-gray-600 italic">
-                "Vidvaan helped me discover my passion for coding. The English assessment was eye-opening and the career guidance was spot-on!"
+                &ldquo;Vidvaan helped me discover my passion for coding. The English assessment was eye-opening and the career guidance was spot-on!&rdquo;
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md">
@@ -230,7 +230,7 @@ export default function HomePage() {
                 </div>
               </div>
               <p className="text-gray-600 italic">
-                "The career interest survey revealed aspects of my personality I never considered. Now I'm in a role that truly fits me!"
+                &ldquo;The career interest survey revealed aspects of my personality I never considered. Now I&apos;m in a role that truly fits me!&rdquo;
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md">
@@ -244,7 +244,7 @@ export default function HomePage() {
                 </div>
               </div>
               <p className="text-gray-600 italic">
-                "From career confusion to clarity! Vidvaan's assessments gave me the confidence to pursue data science."
+                &ldquo;From career confusion to clarity! Vidvaan&apos;s assessments gave me the confidence to pursue data science.&rdquo;
               </p>
             </div>
           </div>

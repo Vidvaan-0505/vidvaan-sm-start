@@ -9,8 +9,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Basic text analysis (you can enhance this with more sophisticated NLP)
-    const wordCount = text.split(/\s+/).filter(word => word.length > 0).length;
-    const sentenceCount = text.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0).length;
+    const wordCount = text.split(/\s+/).filter((word: string) => word.length > 0).length;
+    const sentenceCount = text.split(/[.!?]+/).filter((sentence: string) => sentence.trim().length > 0).length;
     const avgWordLength = text.replace(/[^a-zA-Z]/g, '').length / wordCount || 0;
     
     // Simple English level assessment based on text characteristics

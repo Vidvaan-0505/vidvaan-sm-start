@@ -25,29 +25,31 @@ export default function Module1Page() {
     setError('');
     setMessage('');
 
-    try {
-      const response = await fetch('/api/evaluate-english-levels-simple', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: text,
-          userId: currentUser?.uid,
-          userEmail: currentUser?.email,
-          requestId: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-        }),
-      });
+          try {
+        const token = await currentUser?.getIdToken();
+        const response = await fetch('/api/evaluate-english-levels', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            text: text,
+            userId: currentUser?.uid,
+            userEmail: currentUser?.email,
+            requestId: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+          }),
+        });
 
       const data = await response.json();
 
-             if (response.ok) {
-         setMessage(`Your text has been successfully analyzed! Your English level: ${data.englishLevel}`);
-         setText('');
-       } else {
-         setError(data.error || 'Failed to submit text. Please try again.');
-       }
+                     if (response.ok) {
+          setMessage(`Your text has been successfully submitted! Request ID: ${data.requestId}. Processing will be done in the background.`);
+          setText('');
+        } else {
+          setError(data.error || 'Failed to submit text. Please try again.');
+        }
     } catch (error) {
       setError('Network error. Please check your connection and try again.');
     } finally {
@@ -82,7 +84,7 @@ export default function Module1Page() {
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">English Level Assessment</h2>
             <p className="text-gray-600 mb-6">
-              Please write a paragraph about yourself, your interests, or any topic you'd like to discuss. 
+              Please write a paragraph about yourself, your interests, or any topic you&apos;d like to discuss. 
               This will help us evaluate your English proficiency level and provide personalized recommendations.
             </p>
           </div>

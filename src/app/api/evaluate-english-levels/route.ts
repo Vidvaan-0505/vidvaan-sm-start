@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/firebase';
-import { verifyIdToken } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin if not already initialized
 if (!getApps().length) {
@@ -92,7 +91,8 @@ export async function POST(request: NextRequest) {
     // Verify the Firebase token
     let decodedToken;
     try {
-      decodedToken = await verifyIdToken(token);
+      const auth = getAuth();
+      decodedToken = await auth.verifyIdToken(token);
     } catch (error) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
@@ -104,8 +104,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Basic text analysis (you can enhance this with more sophisticated NLP)
-    const wordCount = text.split(/\s+/).filter(word => word.length > 0).length;
-    const sentenceCount = text.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0).length;
+    const wordCount = text.split(/\s+/).filter((word: string) => word.length > 0).length;
+    const sentenceCount = text.split(/[.!?]+/).filter((sentence: string) => sentence.trim().length > 0).length;
     const avgWordLength = text.replace(/[^a-zA-Z]/g, '').length / wordCount || 0;
     
     // Simple English level assessment based on text characteristics
@@ -117,18 +117,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Save to PostgreSQL with 'no' status (will be processed by listener later)
-    const result = await saveRequestWithStatus(userId, userEmail, text, requestId, timestamp, 'no');
-
-    return NextResponse.json({
-      success: true,
-      assessmentId: result.rows[0].id,
-      requestId: requestId,
-      message: 'Text submitted successfully. Processing will be done by background listener.',
-      timestamps: {
-        client: timestamp,
-        server: new Date().toISOString()
-      }
-    });
+    try {
+      const result = await saveRequestWithStatus(userId, userEmail, text, requestId, timestamp, 'no');
+      
+      return NextResponse.json({
+        success: true,
+        assessmentId: result.rows[0].id,
+        requestId: requestId,
+        message: 'Text submitted successfully. Processing will be done by background listener.',
+        timestamps: {
+          client: timestamp,
+          server: new Date().toISOString()
+        }
+      });
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      return NextResponse.json({
+        success: false,
+        error: 'Database connection failed. Please try again later.',
+        requestId: requestId
+      }, { status: 500 });
+    }
 
   } catch (error) {
     console.error('Error in evaluate_english_levels:', error);

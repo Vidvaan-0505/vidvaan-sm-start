@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
 
 export default function FeaturesSection() {
