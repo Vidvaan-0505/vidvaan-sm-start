@@ -1,48 +1,36 @@
-﻿import { initializeApp } from "firebase/app";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  connectAuthEmulator,
-} from "firebase/auth";
+﻿// src/lib/firebase.ts
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCqiTHeKOZXgH2BuF5WZVRfZcJskF-nREo",
-  authDomain: "vidvaan-sm-try.firebaseapp.com",
-  projectId: "vidvaan-sm-try",
-  storageBucket: "vidvaan-sm-try.firebasestorage.app",
-  messagingSenderId: "225236423647",
-  appId: "1:225236423647:web:0142fb7034ab911a70ea6a",
-  measurementId: "G-X140B8HJXF",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase app
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
-// --- Auth ---
+// Auth
 export const auth = getAuth(app);
 
-// Google Auth Provider setup
+// Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 googleProvider.addScope("email");
 googleProvider.addScope("profile");
 
-// Optionally connect to Auth Emulator (dev only)
-if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-  try {
-    connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
-  } catch (error) {
-  }
-}
-
-// --- Analytics ---
+// Analytics (optional)
 let analytics: ReturnType<typeof getAnalytics> | null = null;
 if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
   try {
     analytics = getAnalytics(app);
-  } catch (error) {
-  }
+  } catch (error) {}
 }
 
 export { analytics };

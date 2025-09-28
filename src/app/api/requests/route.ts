@@ -56,9 +56,9 @@ export async function POST(req: NextRequest) {
 
     // 3. Insert new request
     await pool.query(
-      `INSERT INTO requests (user_id, module_id, input_data, result_table_ref)
-       VALUES ($1, $2, $3, $4)`,
-      [uid, module_id, input_data, `${module_id.toLowerCase()}_results`]
+      `INSERT INTO requests (user_id, module_id, input_data)
+       VALUES ($1, $2, $3)`,
+      [uid, module_id, input_data]
     );
 
     return NextResponse.json({ success: true, message: 'Request submitted successfully' });

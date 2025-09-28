@@ -1,19 +1,17 @@
-// src/lib/firebaseAdmin.ts
+// src/lib/db.ts
 
 
 import pkg from 'pg';
 const { Pool } = pkg;
+import dotenv from 'dotenv';
+dotenv.config();
 
-if (!process.env.PG_USER || !process.env.PG_HOST || !process.env.PG_DATABASE || !process.env.PG_PASSWORD || !process.env.PG_PORT) {
-  throw new Error('Database environment variables are missing. Please check .env.local');
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL is missing. Please check .env.local');
 }
 
 export const pool = new Pool({
-  user: process.env.PG_USER,
-  host: process.env.PG_HOST,
-  database: process.env.PG_DATABASE,
-  password: process.env.PG_PASSWORD,
-  port: parseInt(process.env.PG_PORT, 10),
-  ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  max: 10, // optional: max connections
+  connectionString: process.env.DATABASE_URL,
+  ssl: false, // or { rejectUnauthorized: false } if needed
+  max: 10,
 });

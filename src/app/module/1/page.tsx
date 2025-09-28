@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { createRequest, fetchRequests, fetchRequestById } from '@/services/api';
@@ -19,12 +19,12 @@ export default function Module1Page() {
   const wordCount = text.split(/\s+/).filter((word) => word.length > 0).length;
   const isOverLimit = wordCount > 500;
 
-  // Handle text submission
+  // Submit text
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setMessage('');
-  
+
     if (!text.trim()) {
       setError('Please enter some text to evaluate.');
       return;
@@ -33,7 +33,7 @@ export default function Module1Page() {
       setError('Text must be 500 words or less.');
       return;
     }
-  
+
     setIsSubmitting(true);
     try {
       await createRequest('ENG_WRITE_PARA', { text }, currentUser!);
@@ -46,16 +46,18 @@ export default function Module1Page() {
       setIsSubmitting(false);
     }
   };
+
   // Fetch previous analyses
   const fetchPreviousAnalyses = async () => {
     setIsLoadingHistory(true);
     setError('');
     try {
       const data = await fetchRequests(currentUser!);
-      // Map API response to table-friendly structure
       const analyses = data.map((req: any) => ({
         requestId: req.request_id,
-        textPreview: req.input_data?.text?.substring(0, 60) + '...',
+        textPreview: req.input_data?.text
+          ? req.input_data.text.substring(0, 60) + '...'
+          : '',
         date: req.created_at,
       }));
       setPreviousAnalyses(analyses);
@@ -66,25 +68,26 @@ export default function Module1Page() {
     }
   };
 
-  // Fetch single analysis by ID and show alert
+  // Fetch single analysis and show alert
   const viewAnalysis = async (requestId: string) => {
     setError('');
     try {
       const data = await fetchRequestById(requestId, currentUser!);
-      const analysis = data.data;
+      const analysis = data.data.analysis;
+
+      if (!analysis) {
+        alert('No Data available currently in the backend.');
+        return;
+      }
+
       const analysisText = `
-Analysis for Request ID: ${analysis.requestId}
+Analysis for Request ID: ${data.data.requestId}
 
-Overall Level: ${analysis.overallLevel || 'N/A'}
-Vocabulary Score: ${analysis.vocabularyScore || 'N/A'}/10
-Grammar Score: ${analysis.grammarScore || 'N/A'}/10
-Fluency Score: ${analysis.fluencyScore || 'N/A'}/10
+Assessed Level: ${analysis.assessed_level ?? 'No Data available currently in the backend'}
+Word Count: ${analysis.word_count ?? 'No Data available currently in the backend'}
+Grammar Score: ${analysis.grammar_score ?? 'No Data available currently in the backend'}
 
-Strengths:
-${(analysis.strengths || []).map((s: string) => `• ${s}`).join('\n')}
-
-Suggestions:
-${(analysis.suggestions || []).map((s: string) => `• ${s}`).join('\n')}
+${analysis.analysis_pdf_url ? `PDF Report: ${analysis.analysis_pdf_url}` : ''}
       `;
       alert(analysisText);
     } catch (err: any) {

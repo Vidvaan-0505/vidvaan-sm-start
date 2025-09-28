@@ -1,3 +1,4 @@
+// src/contexts/AuthContext.tsx
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -27,9 +28,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
 
@@ -37,55 +36,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  function signup(email: string, password: string) {
-    if (typeof window === 'undefined') {
-      throw new Error('Auth functions can only be called in browser environment');
-    }
-    return createUserWithEmailAndPassword(auth, email, password);
-  }
+  // Sign up with email/password
+  const signup = (email: string, password: string) => createUserWithEmailAndPassword(auth, email, password);
 
-  function login(email: string, password: string) {
-    if (typeof window === 'undefined') {
-      throw new Error('Auth functions can only be called in browser environment');
-    }
-    return signInWithEmailAndPassword(auth, email, password);
-  }
+  // Log in with email/password
+  const login = (email: string, password: string) => signInWithEmailAndPassword(auth, email, password);
 
-  function signInWithGoogle() {
-    if (typeof window === 'undefined') {
-      throw new Error('Auth functions can only be called in browser environment');
-    }
-    
-    // Use signInWithRedirect for better COOP compliance
+  // Google Sign-In
+  const signInWithGoogle = () => {
     return signInWithPopup(auth, googleProvider).catch((error) => {
-      // If popup fails due to COOP, fall back to redirect
       if (error.code === 'auth/popup-blocked' || error.message.includes('Cross-Origin-Opener-Policy')) {
         return signInWithRedirect(auth, googleProvider);
       }
       throw error;
     });
-  }
+  };
 
-  function logout() {
-    if (typeof window === 'undefined') {
-      throw new Error('Auth functions can only be called in browser environment');
-    }
-    return signOut(auth);
-  }
+  // Log out
+  const logout = () => signOut(auth);
 
+  // Track auth state
   useEffect(() => {
-    // Check if we're in a browser environment
-    if (typeof window === 'undefined') {
-      setLoading(false);
-      return;
-    }
+    if (typeof window === 'undefined') return setLoading(false);
 
-    // Handle redirect result for Google sign-in
-    getRedirectResult(auth).then((result) => {
-      if (result) {
-      }
-    }).catch((error) => {
-    });
+    // Optional: handle Google redirect result
+    getRedirectResult(auth).catch(() => {});
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -95,18 +70,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const value = {
-    currentUser,
-    signup,
-    login,
-    signInWithGoogle,
-    logout,
-    loading
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ currentUser, signup, login, signInWithGoogle, logout, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   );
-} 
+}
