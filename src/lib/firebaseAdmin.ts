@@ -1,18 +1,31 @@
-// src/lib/firebaseAdmin.ts
 import admin from 'firebase-admin';
 
-if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-  throw new Error('Firebase Admin environment variables are missing. Please check .env.local');
-}
+let firebaseAdmin: admin.app.App | null = null;
 
-if (!admin.apps.length) {
-  admin.initializeApp({
+export function getFirebaseAdmin(): admin.app.App {
+  if (firebaseAdmin) return firebaseAdmin;
+
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error(
+      'Firebase Admin environment variables are missing. Please set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY'
+    );
+  }
+
+  // Replace literal \n with actual newlines in private key
+  const formattedKey = privateKey.replace(/\\n/g, '\n');
+
+  firebaseAdmin = admin.initializeApp({
     credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), // important!
+      projectId,
+      clientEmail,
+      privateKey: formattedKey,
     }),
   });
-}
 
-export default admin;
+  console.log('✅ Firebase Admin initialized successfully');
+  return firebaseAdmin;
+}

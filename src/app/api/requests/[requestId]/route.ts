@@ -1,8 +1,11 @@
+// src/app/api/requests/[requestId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
-import admin from '@/lib/firebaseAdmin';
+import { getFirebaseAdmin } from '@/lib/firebaseAdmin';
+import { getDb } from '@/lib/db';
 
-// Type definitions for better type safety
+// Lazy initialize Firebase Admin
+const admin = getFirebaseAdmin();
+
 type RequestData = {
   request_id: string;
   user_id: string;
@@ -10,15 +13,6 @@ type RequestData = {
   input_data: { text: string };
   status: string;
   created_at: string;
-  result_table_ref: string;
-};
-
-type AnalysisResult = {
-  request_id: string;
-  assessed_level: string;
-  word_count: number;
-  grammar_score: number | null;
-  analysis_pdf_url: string | null;
 };
 
 type ApiResponse = {
@@ -27,19 +21,33 @@ type ApiResponse = {
   inputData: { text: string };
   status: string;
   createdAt: string;
-  resultTableRef: string;
-  analysis?: AnalysisResult;
 };
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { requestId: string } }
-) {
+export async function GET(req: NextRequest, context: any) {
+  // Lazy initialize DB inside handler
+  const pool = getDb();
+
+  const requestId = context?.params?.requestId;
+
+  if (!requestId) {
+    return NextResponse.json(
+      { success: false, error: 'Request ID is required' },
+      { status: 400 }
+    );
+  }
+
+  if (!admin) {
+    return NextResponse.json(
+      { success: false, error: 'Firebase Admin not initialized' },
+      { status: 500 }
+    );
+  }
+
   try {
-    // 1. Verify authentication
+    // 🔐 Authentication
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.split('Bearer ')[1];
-    
+
     if (!token) {
       return NextResponse.json(
         { success: false, error: 'Authorization token required' },
@@ -47,22 +55,12 @@ export async function GET(
       );
     }
 
-    // 2. Verify Firebase token
     const decodedToken = await admin.auth().verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    // 3. Parse request ID from params
-    const { requestId } = params;
-    if (!requestId) {
-      return NextResponse.json(
-        { success: false, error: 'Request ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // 4. Query database for the specific request
-    const result = await pool.query(
-      `SELECT request_id, user_id, module_id, input_data, status, created_at, result_table_ref
+    // 🗄️ Fetch request from DB
+    const result = await pool.query<RequestData>(
+      `SELECT request_id, user_id, module_id, input_data, status, created_at
        FROM requests
        WHERE request_id = $1 AND user_id = $2`,
       [requestId, uid]
@@ -75,31 +73,7 @@ export async function GET(
       );
     }
 
-    const request: RequestData = result.rows[0];
-
-    // 5. Fetch analysis results if table exists
-    let analysis: AnalysisResult | undefined;
-    try {
-      if (request.result_table_ref) {
-        const analysisResult = await pool.query(
-          `SELECT * FROM ${request.result_table_ref} WHERE request_id = $1`,
-          [requestId]
-        );
-
-        if (analysisResult.rows.length > 0) {
-          const row = analysisResult.rows[0];
-          analysis = {
-            request_id: row.request_id,
-            assessed_level: row.assessed_level || 'No Data available currently in the backend',
-            word_count: row.word_count ?? 0,
-            grammar_score: row.grammar_score ?? null,
-            analysis_pdf_url: row.analysis_pdf_url ?? null,
-          };
-        }
-      }
-    } catch (err) {
-      // Non-critical: Analysis might not exist yet
-    }
+    const request = result.rows[0];
 
     const response: ApiResponse = {
       requestId: request.request_id,
@@ -107,13 +81,13 @@ export async function GET(
       inputData: request.input_data,
       status: request.status,
       createdAt: request.created_at,
-      resultTableRef: request.result_table_ref,
-      ...(analysis && { analysis }),
     };
 
     return NextResponse.json({ success: true, data: response });
-
   } catch (err: any) {
+    console.error('📝 /api/requests/[requestId] error:', err);
+
+    // Firebase token errors
     if (err.code === 'auth/id-token-expired' || err.code === 'auth/argument-error') {
       return NextResponse.json(
         { success: false, error: 'Authentication failed. Invalid or expired token' },
@@ -121,6 +95,7 @@ export async function GET(
       );
     }
 
+    // PostgreSQL invalid UUID
     if (err.code === '22P02') {
       return NextResponse.json(
         { success: false, error: 'Invalid request ID format' },

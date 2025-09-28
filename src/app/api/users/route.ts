@@ -1,11 +1,35 @@
-// /api/users/route.ts
-import admin from '@/lib/firebaseAdmin';
-import { pool } from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
+// src/app/api/users/route.ts
 
+import { NextRequest, NextResponse } from 'next/server';
+import { getFirebaseAdmin } from '@/lib/firebaseAdmin';
+import { getDb } from '@/lib/db';
+
+// Lazy initialization of Firebase Admin
+const admin = getFirebaseAdmin();
+
+// TypeScript type for user response
+type UserResponse = {
+  user_id: string;
+  email: string;
+  phone: string | null;
+  account_status: string;
+  quota_limit_english: number;
+  quota_used_english: number;
+};
 
 export async function POST(req: NextRequest) {
   try {
+    const pool = getDb(); // ✅ init inside handler
+
+    // 0️⃣ Check that admin & pool exist
+    if (!admin || !pool) {
+      console.warn('Firebase Admin or PostgreSQL pool not initialized.');
+      return NextResponse.json(
+        { error: 'Server not properly initialized. Check environment variables.' },
+        { status: 500 }
+      );
+    }
+
     // 1️⃣ Read ID token from Authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -19,11 +43,11 @@ export async function POST(req: NextRequest) {
     // 2️⃣ Verify Firebase token
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const uid = decodedToken.uid;
-    const email = decodedToken.email; // Could be null for phone-only accounts
+    const email = decodedToken.email;
 
     if (!email) {
       return NextResponse.json(
-        { error: 'User email not found in token. Please ensure your account has a valid email address.' },
+        { error: 'User email not found in token. Please ensure your account has a valid email.' },
         { status: 400 }
       );
     }
@@ -46,10 +70,11 @@ export async function POST(req: NextRequest) {
     );
 
     // 5️⃣ Return user object
-    return NextResponse.json({ success: true, user: result.rows[0] });
+    return NextResponse.json({ success: true, user: result.rows[0] as UserResponse });
   } catch (err: any) {
+    console.error('📝 /api/users POST error:', err);
 
-    // Specific Firebase token errors
+    // Firebase token errors
     if (err.code === 'auth/id-token-expired' || err.code === 'auth/argument-error') {
       return NextResponse.json(
         { error: 'Authentication failed. Please log in again.' },
