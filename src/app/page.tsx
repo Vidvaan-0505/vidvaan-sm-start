@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 
+
 // Lazy load the FeaturesSection component
 const FeaturesSection = dynamic(() => import('@/components/FeaturesSection'), {
   loading: () => (
@@ -39,7 +40,9 @@ export default function HomePage() {
 
   useEffect(() => {
     // Simulate loading delay for better UX
-    const timer = setTimeout(() => setIsLoaded(true), 100);
+    const timer = setTimeout(() => {
+      setIsLoaded(true);
+    }, 100);
     return () => clearTimeout(timer);
   }, []);
 
@@ -96,7 +99,6 @@ export default function HomePage() {
                         await logout();
                         router.push('/');
                       } catch (error) {
-                        console.error('Failed to log out:', error);
                       }
                     }}
                     className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors duration-200"

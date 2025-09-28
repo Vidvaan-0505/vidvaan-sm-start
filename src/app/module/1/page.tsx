@@ -1,71 +1,113 @@
 'use client';
-
-import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { createRequest, fetchRequests, fetchRequestById } from '@/services/api';
 
 export default function Module1Page() {
   const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'submit' | 'history'>('submit');
+  const [previousAnalyses, setPreviousAnalyses] = useState<
+    { requestId: string; textPreview: string; date: string }[]
+  >([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const { currentUser } = useAuth();
-  const router = useRouter();
 
+  const wordCount = text.split(/\s+/).filter((word) => word.length > 0).length;
+  const isOverLimit = wordCount > 500;
+
+  // Handle text submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!text.trim()) {
-      setError('Please enter some text to evaluate');
-      return;
-    }
-
-    setIsSubmitting(true);
     setError('');
     setMessage('');
-
-          try {
-        const token = await currentUser?.getIdToken();
-        const response = await fetch('/api/evaluate-english-levels', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            text: text,
-            userId: currentUser?.uid,
-            userEmail: currentUser?.email,
-            requestId: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-          }),
-        });
-
-      const data = await response.json();
-
-                     if (response.ok) {
-          setMessage(`Your text has been successfully submitted! Request ID: ${data.requestId}. Processing will be done in the background.`);
-          setText('');
-        } else {
-          setError(data.error || 'Failed to submit text. Please try again.');
-        }
-    } catch (error) {
-      setError('Network error. Please check your connection and try again.');
+  
+    if (!text.trim()) {
+      setError('Please enter some text to evaluate.');
+      return;
+    }
+    if (isOverLimit) {
+      setError('Text must be 500 words or less.');
+      return;
+    }
+  
+    setIsSubmitting(true);
+    try {
+      await createRequest('ENG_WRITE_PARA', { text }, currentUser!);
+      setMessage('✅ Your request was submitted successfully!');
+      setText('');
+      if (activeTab === 'history') fetchPreviousAnalyses();
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit text.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+  // Fetch previous analyses
+  const fetchPreviousAnalyses = async () => {
+    setIsLoadingHistory(true);
+    setError('');
+    try {
+      const data = await fetchRequests(currentUser!);
+      // Map API response to table-friendly structure
+      const analyses = data.map((req: any) => ({
+        requestId: req.request_id,
+        textPreview: req.input_data?.text?.substring(0, 60) + '...',
+        date: req.created_at,
+      }));
+      setPreviousAnalyses(analyses);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch previous analyses.');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Fetch single analysis by ID and show alert
+  const viewAnalysis = async (requestId: string) => {
+    setError('');
+    try {
+      const data = await fetchRequestById(requestId, currentUser!);
+      const analysis = data.data;
+      const analysisText = `
+Analysis for Request ID: ${analysis.requestId}
+
+Overall Level: ${analysis.overallLevel || 'N/A'}
+Vocabulary Score: ${analysis.vocabularyScore || 'N/A'}/10
+Grammar Score: ${analysis.grammarScore || 'N/A'}/10
+Fluency Score: ${analysis.fluencyScore || 'N/A'}/10
+
+Strengths:
+${(analysis.strengths || []).map((s: string) => `• ${s}`).join('\n')}
+
+Suggestions:
+${(analysis.suggestions || []).map((s: string) => `• ${s}`).join('\n')}
+      `;
+      alert(analysisText);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch analysis.');
+    }
+  };
+
+  const handleTabChange = (tab: 'submit' | 'history') => {
+    setActiveTab(tab);
+    if (tab === 'history' && previousAnalyses.length === 0) {
+      fetchPreviousAnalyses();
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
+      {/* Navbar */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <Link href="/dashboard" className="text-indigo-600 hover:text-indigo-500">
-                ← Back to Dashboard
+                Back to Dashboard
               </Link>
               <Link href="/" className="text-2xl font-bold text-indigo-600 hover:text-indigo-700 transition-colors duration-200">
                 Vidvaan
@@ -78,76 +120,149 @@ export default function Module1Page() {
         </div>
       </nav>
 
-      {/* Module Content */}
+      {/* Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">English Level Assessment</h2>
-            <p className="text-gray-600 mb-6">
-              Please write a paragraph about yourself, your interests, or any topic you&apos;d like to discuss. 
-              This will help us evaluate your English proficiency level and provide personalized recommendations.
-            </p>
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {/* Tabs */}
+          <div className="border-b border-gray-200">
+            <nav className="flex">
+              <button
+                onClick={() => handleTabChange('submit')}
+                className={`px-6 py-4 text-lg font-medium border-b-2 ${
+                  activeTab === 'submit'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Submit Text
+              </button>
+              <button
+                onClick={() => handleTabChange('history')}
+                className={`px-6 py-4 text-lg font-medium border-b-2 ${
+                  activeTab === 'history'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Previous Analyses
+              </button>
+            </nav>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="text" className="block text-sm font-medium text-gray-700 mb-2">
-                Your Text (Minimum 50 words recommended)
-              </label>
-              <textarea
-                id="text"
-                rows={8}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                placeholder="Write your paragraph here..."
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                required
-              />
-              <p className="mt-2 text-sm text-gray-500">
-                Word count: {text.split(/\s+/).filter(word => word.length > 0).length}
-              </p>
-            </div>
+          {/* Tab content */}
+          <div className="p-8">
+            {activeTab === 'submit' ? (
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">English Assessment</h2>
+                <p className="text-gray-600 mb-6">Submit text up to 500 words for evaluation.</p>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div>
+                    <label htmlFor="text" className="block text-sm font-medium text-gray-700 mb-2">
+                      Your Text (Maximum 500 words)
+                    </label>
+                    <textarea
+                      id="text"
+                      rows={10}
+                      maxLength={500}
+                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 resize-none ${
+                        isOverLimit ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      placeholder="Write your text here..."
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      required
+                    />
+                    <div className="mt-2 flex justify-between">
+                      <p className={`text-sm ${isOverLimit ? 'text-red-600' : 'text-gray-500'}`}>
+                        Word count: {wordCount}/500
+                      </p>
+                      {isOverLimit && <p className="text-sm text-red-600">Reduce by {wordCount - 500} words</p>}
+                    </div>
+                  </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
-                {error}
+                  {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">{error}</div>}
+                  {message && <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md">{message}</div>}
+
+                  <div className="flex justify-between items-center">
+                    <Link href="/dashboard" className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                      Cancel
+                    </Link>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || isOverLimit}
+                      className="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? 'Submitting...' : 'Submit for Evaluation'}
+                    </button>
+                  </div>
+                </form>
               </div>
-            )}
+            ) : (
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">Previous Analyses</h2>
+                <p className="text-gray-600 mb-6">View your submission history and analysis reports.</p>
 
-            {message && (
-              <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md">
-                {message}
-              </div>
-            )}
-
-            <div className="flex justify-between items-center">
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Submitting...
-                  </>
+                {isLoadingHistory ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                    <p className="mt-2 text-gray-500">Loading previous analyses...</p>
+                  </div>
                 ) : (
-                  'Submit for Evaluation'
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Request ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Text Preview
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Date
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {previousAnalyses.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+                              No previous analyses found. Submit your first text assessment!
+                            </td>
+                          </tr>
+                        ) : (
+                          previousAnalyses.map((analysis) => (
+                            <tr key={analysis.requestId}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {analysis.requestId.substring(0, 8)}...
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{analysis.textPreview}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(analysis.date).toLocaleDateString()}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                <button
+                                  onClick={() => viewAnalysis(analysis.requestId)}
+                                  className="text-indigo-600 hover:text-indigo-900 font-medium"
+                                >
+                                  View Analysis
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
-              </button>
-            </div>
-          </form>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
-} 
+}
